@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plant care cell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#dfe6e3; --bg2:#c9d3cf; --ink:#1c2422; --muted:#5b6965; --line:#b8c4c0;
+  --panel:rgba(247,250,249,.88); --panel-solid:#f4f7f6; --accent:#2e7d4f; --accent-ink:#ffffff;
+  --water:#2f7fd8; --treat:#c98a0c; --warn:#e8670c; --track:#d3dcd9;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1a201f; --bg2:#101413; --ink:#e6ecea; --muted:#9aa8a4; --line:#33403c;
+    --panel:rgba(28,35,33,.9); --panel-solid:#1f2725; --accent:#4fae75; --accent-ink:#0d1a13;
+    --water:#5aa6f0; --treat:#e8b23a; --track:#33403c; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1a201f; --bg2:#101413; --ink:#e6ecea; --muted:#9aa8a4; --line:#33403c;
+  --panel:rgba(28,35,33,.9); --panel-solid:#1f2725; --accent:#4fae75; --accent-ink:#0d1a13;
+  --water:#5aa6f0; --treat:#e8b23a; --track:#33403c; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(120% 90% at 40% 30%,var(--bg) 0%,var(--bg2) 100%);color:var(--ink);
+  font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;font-size:15px;line-height:1.4}
+#stage{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#stage.dragging{cursor:grabbing}
+
+.head{position:fixed;left:20px;top:calc(env(safe-area-inset-top,0px) + 18px);max-width:min(460px,calc(100% - 330px));pointer-events:none}
+.head h1{font-family:"Barlow Semi Condensed","Barlow",system-ui,sans-serif;font-weight:600;font-size:clamp(26px,4vw,38px);line-height:1;margin:0;letter-spacing:-.01em}
+.status{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.status.live .dot{background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent)}
+.status.water .dot{background:var(--water);box-shadow:0 0 0 4px color-mix(in srgb,var(--water) 25%,transparent)}
+.status.treat .dot{background:var(--treat);box-shadow:0 0 0 4px color-mix(in srgb,var(--treat) 25%,transparent)}
+.tally{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:14px;color:var(--muted)}
+.tally b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+
+.side{position:fixed;right:16px;top:calc(env(safe-area-inset-top,0px) + 16px);width:270px;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.feed{position:relative;height:176px;border-radius:12px;border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.feed span{position:absolute;left:8px;top:7px;font-size:12px;font-weight:600;color:#fff;background:rgba(0,0,0,.45);padding:2px 7px;border-radius:6px}
+.feed i{position:absolute;right:9px;top:10px;width:8px;height:8px;border-radius:50%;background:#e33}
+
+.data{background:var(--panel);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:12px;padding:12px 14px 13px;
+  box-shadow:0 6px 24px rgba(0,0,0,.14);transform-origin:top right;transition:opacity .25s ease,transform .3s cubic-bezier(.2,.9,.3,1.2);opacity:0;transform:scale(.92) translateY(-6px)}
+.data.open{opacity:1;transform:none}
+.data .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.data .id{font-family:"Barlow Semi Condensed","Barlow",sans-serif;font-weight:600;font-size:21px;line-height:1.1}
+.data .sp{color:var(--muted);font-size:14px}
+.chip{display:inline-block;margin-top:8px;font-size:13px;font-weight:600;padding:3px 9px;border-radius:999px;background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.chip.water{background:color-mix(in srgb,var(--water) 18%,transparent);color:var(--water)}
+.chip.treat{background:color-mix(in srgb,var(--treat) 20%,transparent);color:var(--treat)}
+.chip.ok{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.meter{margin-top:12px}
+.meter .lbl{display:flex;justify-content:space-between;font-size:14px}
+.meter .lbl span{color:var(--muted)}
+.meter .lbl strong{font-weight:600;font-variant-numeric:tabular-nums}
+.track{position:relative;height:8px;border-radius:5px;background:var(--track);margin-top:5px;overflow:visible}
+.track i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--water)}
+.track b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55;left:60%}
+.data dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:12px 0 0;font-size:14px}
+.data dt{color:var(--muted)}
+.data dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.data dd.flag{color:var(--treat);font-weight:600}
+.data dd.good{color:var(--accent);font-weight:600}
+
+.dock{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;pointer-events:none}
+.bar{pointer-events:auto;display:flex;gap:4px;align-items:center;background:var(--panel);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:5px}
+.bar small{color:var(--muted);font-size:13px;padding:0 4px 0 8px}
+button{font:inherit;font-weight:500;color:var(--ink);background:transparent;border:0;border-radius:9px;padding:8px 11px;cursor:pointer;white-space:nowrap}
+button:hover{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--panel-solid)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.run{background:var(--accent);color:var(--accent-ink);font-weight:600;padding:9px 16px}
+.run:hover{background:color-mix(in srgb,var(--accent) 85%,var(--ink))}
+.run.stop{background:var(--warn);color:#fff}
+.farm{font-weight:600}
+.sep{width:1px;align-self:stretch;background:var(--line);margin:2px}
+.swatch{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+details.joints{pointer-events:auto;background:var(--panel);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:4px 6px;min-width:240px}
+details.joints summary{list-style:none;cursor:pointer;font-weight:600;padding:7px 8px;border-radius:9px;display:flex;justify-content:space-between;gap:16px}
+details.joints summary::-webkit-details-marker{display:none}
+details.joints summary::after{content:"＋";color:var(--muted);font-weight:400}
+details.joints[open] summary::after{content:"－"}
+.rows{padding:2px 8px 10px;display:grid;gap:9px}
+.row{display:grid;grid-template-columns:96px 1fr 44px;align-items:center;gap:10px;font-size:14px}
+.row label{color:var(--muted)}
+.row output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);height:22px;margin:0}
+#watch{display:contents}
+[hidden]{display:none!important}
+@media (max-width:760px){
+  .head{max-width:calc(100% - 40px)}
+  .head h1{font-size:26px}
+  .tally{font-size:13px}
+  .side{width:170px;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 190px);right:10px}
+  .feed{height:108px}
+  .data{padding:9px 10px;font-size:13px}
+  .data .id{font-size:17px}
+  .data dl,.meter .lbl{font-size:12.5px}
+  details.joints{min-width:0;flex:1 1 100%}
+  .bar{flex-wrap:wrap}
+  button{padding:7px 9px}
+}
+@media (prefers-reduced-motion: reduce){ .data{transition:none} }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="3D scene of mobile robot arms tending potted plants on shelves. Drag to orbit, scroll or pinch to zoom."></canvas>
+
+<div class="head">
+  <h1 id="title">Plant care cell</h1>
+  <div class="status" id="status" role="status"><span class="dot"></span><span id="statusText">Idle. Run a care cycle to start.</span></div>
+  <div class="tally" id="tally"></div>
+</div>
+
+<div class="side">
+  <div class="feed" id="feed" aria-hidden="true"><span>Tool camera</span><i></i></div>
+  <section class="data" id="data" aria-live="polite">
+    <div class="top"><span class="id" id="dId">–</span><span class="sp" id="dSp"></span></div>
+    <span class="chip" id="dChip">Reading tag</span>
+    <div class="meter">
+      <div class="lbl"><span>Soil moisture</span><strong id="dMoist">–</strong></div>
+      <div class="track"><i id="dFill"></i><b title="Target"></b></div>
+    </div>
+    <dl>
+      <dt>Temperature</dt><dd id="dTemp">–</dd>
+      <dt>Humidity</dt><dd id="dHum">–</dd>
+      <dt>Leaves</dt><dd id="dLeaf">–</dd>
+      <dt>Weeds</dt><dd id="dWeed">–</dd>
+    </dl>
+  </section>
+</div>
+
+<div class="dock">
+  <div class="bar">
+    <button class="run" id="run">Run care cycle</button>
+    <button id="speed" aria-pressed="false">2× speed</button>
+  </div>
+  <div class="bar" role="group" aria-label="Manual tool controls">
+    <button id="waterBtn" aria-pressed="false"><span class="swatch" style="background:var(--water)"></span>Water</button>
+    <button id="treatBtn" aria-pressed="false"><span class="swatch" style="background:var(--treat)"></span>Weed and leaf spray</button>
+    <button id="scanBtn" aria-pressed="false">Scan</button>
+  </div>
+  <div class="bar" role="group" aria-label="Camera view">
+    <button data-view="overview" aria-pressed="true">Overview</button>
+    <button data-view="front" aria-pressed="false">Front</button>
+    <button data-view="side" aria-pressed="false">Side</button>
+    <button data-view="top" aria-pressed="false">Top</button>
+    <button data-view="tool" aria-pressed="false">Follow tool</button>
+  </div>
+  <div class="bar">
+    <button class="farm" id="farmBtn" aria-pressed="false">Show farm</button>
+    <span id="watch" hidden><span class="sep"></span><small>Watching</small>
+      <button data-row="0" aria-pressed="true">Row 1</button><button data-row="1" aria-pressed="false">Row 2</button><button data-row="2" aria-pressed="false">Row 3</button></span>
+  </div>
+  <div class="bar"><button id="rigBtn" aria-pressed="false">Switch to scissor lift</button></div>
+  <details class="joints" id="joints">
+    <summary>Joints and drive</summary>
+    <div class="rows" id="rows"></div>
+  </details>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+const QR = {"R1M1-A1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","111101001110001000010","100000111000100011001","010111000100001001110","110010110110101011010","000000001001010100110","111111101101011101010","100000101011110110101","101110101001011100101","101110100110001100110","101110101000100011001","100000101010001000111","111111101010101010101"],"R1M1-A2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","101100001110001000010","010101101000100011001","000010001010001001110","110110100010101011010","000000001011010100110","111111101001011101010","100000101001110110101","101110101011011100101","101110100010001100110","101110101110100011001","100000101000001110111","111111101100101010101"],"R1M1-B1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","111010010011111001100","101001101111000000101","100111001101001110110","001111111000100101011","000000001001001000101","111111100001100101101","100000100010000111011","101110100010111110001","101110101101001010010","101110101000101100100","100000101110010101000","111111101110010010010"],"R1M1-B2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","011010000010001000010","111111111100100011001","110101000100001001110","000101100010101011010","000000001111010100110","111111101101011101010","100000101001110110101","101110101011011101101","101110100110001101010","101110101000100010101","100000101000001111011","111111101000101010101"],"R1M2-A1":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","110010000010001000010","111111110100110001011","100001010011000001111","110101111010101010110","000000001001000111000","111111101110010100111","100000100101110110101","101110100011001110111","101110101001000101111","101110100100100011001","100000101100011010101","111111101011100011100"],"R1M2-A2":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","100011000010001000010","001010100100110001011","110100011101000001111","110001101110101010110","000000001011000111000","111111101010010100111","100000100111110110101","101110100001001110111","101110101101000101111","101110100010100011001","100000101110011100101","111111101101100011100"],"R1M2-B1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","000100001110001000010","000111110010100011001","011111010100001000110","000110111010101010110","000000001111010101010","111111101011011101110","100000101101110110101","101110101001011101101","101110100100001101010","101110101010100010101","100000101110001001011","111111101110101010101"],"R1M2-B2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","010101001110001000010","110010100010100011001","001010011010001000110","000010101110101010110","000000001101010101010","111111101111011101110","100000101111110110101","101110101011011101101","101110100000001101010","101110101100100010101","100000101100001111011","111111101000101010101"],"R1M3-A1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","001101010010001000010","011110101100100011001","101111000100001000110","010111110000101010110","000000001011010101010","111111101001011101010","100000101001110110101","101110101111011100101","101110100010001100110","101110101110100011001","100000101000001000111","111111101100101010101"],"R1M3-A2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","011100010010001000010","101011111100100011001","111010001010001000110","010011100100101010110","000000001001010101010","111111101101011101010","100000101011110110101","101110101101011100101","101110100110001100110","101110101000100011001","100000101010001110111","111111101010101010101"],"R1M3-B1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","001010001111111001100","010111111011000000101","011111001101001111110","101010111110100100111","000000001011001001001","111111100101100101101","100000100000000111011","101110100100111110001","101110101001001010010","101110101110101100100","100000101100010101000","111111101000010010010"],"R1M3-B2":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","011011001111111001100","100010101011000000101","001010000011001111110","101110101010100100111","000000001001001001001","111111100001100101101","100000100010000111011","101110100110111110001","101110101101001010010","101110101000101100100","100000101110010011000","111111101110010010010"],"R2M1-A1":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","001111001000001000000","111001100100110001011","001110011011000000111","001011101100101011010","000000001001000110100","111111101010010100011","100000100001110110101","101110100101001110111","101110101011000101111","101110100010100011001","100000101000011010101","111111101111100011100"],"R2M1-A2":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","011110001000001000000","001100110100110001011","011011010101000000111","001111111000101011010","000000001011000110100","111111101110010100011","100000100011110110101","101110100111001110111","101110101111000101111","101110100100100011001","100000101010011100101","111111101001100011100"],"R2M1-B1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","001000010101111001110","100010100001000000101","110111011011001110110","110110100010100101011","000000001011001000101","111111100111100101101","100000100000000111011","101110100100111110001","101110101001001010010","101110101010101100100","100000101110010101000","111111101010010010010"],"R2M1-B2":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","101000000100001000000","100110100000110001011","101100011011000000111","111100111000101011010","000000001111000110100","111111101010010100011","100000100011110110101","101110100111001111111","101110101011000100011","101110100010100010101","100000101010011101001","111111101101100011100"],"R2M2-A1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","000000000100001000000","100110101000100011001","111000001100001000110","001100100000101010110","000000001001010101010","111111101001011101110","100000101111110110101","101110101111011100101","101110100100001100110","101110101110100011001","100000101110001000111","111111101110101010101"],"R2M2-A2":["111111100011101111111","100000101110101000001","101110100011101011101","101110101100101011101","101110100100101011101","100000101001001000001","111111101010101111111","000000000100000000000","111110111001010101010","100000010101111001110","011101110110101101000","011100010011111001000","000110111010100100111","000000001010100100100","111111101011010011111","100000100100000111011","101110101011010010100","101110101001111101000","101110101110101101000","100000101101111111001","111111101110100100100"],"R2M2-B1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","000111011001111001110","101111111111000000101","001000000101001111110","110001101110100100111","000000001001001001001","111111100101100101001","100000100110000111011","101110100100111110001","101110101111001010010","101110101110101100100","100000101010010101000","111111101010010010010"],"R2M2-B2":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","010110011001111001110","011010101111000000101","011101001011001111110","110101111010100100111","000000001011001001001","111111100001100101001","100000100100000111011","101110100110111110001","101110101011001010010","101110101000101100100","100000101000010011000","111111101100010010010"],"R2M3-A1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","111111010100001000000","010101100010100011001","111111010010001000110","101110101010101010110","000000001001010101010","111111101111011101010","100000101011110110101","101110101001011100101","101110100110001100110","101110101100100011001","100000101000001000111","111111101000101010101"],"R2M3-A2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","101110010100001000000","100000110010100011001","101010011100001000110","101010111110101010110","000000001011010101010","111111101011011101010","100000101001110110101","101110101011011100101","101110100010001100110","101110101010100011001","100000101010001110111","111111101110101010101"],"R2M3-B1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","001001011000001000000","111111110110100011001","001000011100001000110","011101101010101010110","000000001101010101010","111111101011011101010","100000101011110110101","101110101001011101101","101110100010001101010","101110101010100010101","100000101000001001011","111111101100101010101"],"R2M3-B2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","011000011000001000000","001010100110100011001","011101010010001000110","011001111110101010110","000000001111010101010","111111101111011101010","100000101001110110101","101110101011011101101","101110100110001101010","101110101100100010101","100000101010001111011","111111101010101010101"],"R3M1-A1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","011111001001111001101","000110100001000000101","000010001011001110110","001000110100100101011","000000001001001000101","111111100111100101101","100000100000000111011","101110100100111111001","101110101111001011110","101110101110101101000","100000101110010100100","111111101000010010010"],"R3M1-A2":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","001110001001111001101","110011110001000000101","010111000101001110110","001100100000100101011","000000001011001000101","111111100011100101101","100000100010000111011","101110100110111111001","101110101011001011110","101110101000101101000","100000101100010010100","111111101110010010010"],"R3M1-B1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","011000010100001000011","001111110110100011001","110010000010001001110","110101111010101011010","000000001001010100110","111111101011011101010","100000101001110110101","101110101111011101101","101110100100001101010","101110101110100010101","100000101010001001011","111111101100101010101"],"R3M1-B2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","001001010100001000011","111010100110100011001","100111001100001001110","110001101110101011010","000000001011010100110","111111101111011101010","100000101011110110101","101110101101011101101","101110100000001101010","101110101000100010101","100000101000001111011","111111101010101010101"],"R3M2-A1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","010000000101111001101","001011111111000000101","111101010101001111110","001111111000100100111","000000001011001001001","111111100101100101001","100000100110000111011","101110100100111111001","101110101001001011110","101110101010101101000","100000101010010100100","111111101000010010010"],"R3M2-A2":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","110000010100001000011","001111111110110001011","100110010101000001111","000101100010101010110","000000001111000111000","111111101000010100111","100000100101110110101","101110100111001110111","101110101011000101111","101110100010100011001","100000101110011100101","111111101111100011100"],"R3M2-B1":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","010111011000001000011","000010101000100011001","001101011100001000110","110010110110101010110","000000001011010101010","111111101001011101110","100000101111110110101","101110101111011101101","101110100010001101010","101110101010100010101","100000101110001001011","111111101100101010101"],"R3M2-B2":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","110111001001111001101","010100111011000000101","011111010101001111110","111000101100100100111","000000001101001001001","111111100101100101001","100000100100000111011","101110100110111110001","101110101001001010010","101110101010101100100","100000101000010011000","111111101010010010010"],"R3M3-A1":["111111100101101111111","100000101101001000001","101110101100101011101","101110100101001011101","101110101000101011101","100000101001101000001","111111101010101111111","000000001111100000000","110100110110001110110","011110000100001000011","001001100100110001011","110100000101000001111","100011111100101010110","000000001101000111000","111111101010010100011","100000100011110110101","101110100011001110111","101110101101000101111","101110100110100011001","100000101010011010101","111111101111100011100"],"R3M3-A2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","001111000100001000011","101110100110100011001","101000000010001000110","100111101000101010110","000000001101010101010","111111101111011101010","100000101001110110101","101110101011011100101","101110100000001100110","101110101000100011001","100000101010001110111","111111101000101010101"],"R3M3-B1":["111111101011101111111","100000100011001000001","101110101101001011101","101110101100101011101","101110101001001011101","100000100111101000001","111111101010101111111","000000000001100000000","111100101111110011101","011001011001111001101","010010100001000000101","001101000101001111110","011110110010100100111","000000001111001001001","111111100111100101101","100000100010000111011","101110100010111110001","101110101111001010010","101110101110101100100","100000101100010101000","111111101010010010010"],"R3M3-B2":["111111100101101111111","100000100111001000001","101110101101101011101","101110100101001011101","101110100010101011101","100000100000101000001","111111101010101111111","000000001101100000000","111011111111011000100","111001001000001000011","000100110010100011001","011111001100001000110","010100101000101010110","000000001001010101010","111111101011011101010","100000101001110110101","101110101011011101101","101110100100001101010","101110101110100010101","100000101010001111011","111111101100101010101"]};
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, .02, 80);
+
+scene.add(new THREE.HemisphereLight(0xf2f6ff, 0x8a8577, .75));
+const sun = new THREE.DirectionalLight(0xfff3e0, 1.35);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -.0004; sun.shadow.normalBias = .02;
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0xcfe0ff, .35); fill.position.set(-3, 2, -1); scene.add(fill);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({opacity:.22}));
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(24, 96, 0x7d8a86, 0x7d8a86);
+grid.material.transparent = true; grid.material.opacity = .2; grid.position.y = .001; scene.add(grid);
+
+const M = (c, o={}) => new THREE.MeshStandardMaterial(Object.assign({color:c, roughness:.6, metalness:0}, o));
+const mat = {
+  shelf:M(0xdccbab,{roughness:.75}), orange:M(0xf06b0c,{roughness:.42}), grey:M(0x3e4247,{roughness:.5, metalness:.2}),
+  dark:M(0x17181a), metal:M(0xc9ccd0,{roughness:.28, metalness:1}), black:M(0x0b0b0c,{roughness:.35}),
+  glass:M(0x16305a,{roughness:.05, metalness:.5}), body:M(0xe4e6e8,{roughness:.55}), tyre:M(0x222326,{roughness:.85}),
+  pot:M(0xb85c38,{roughness:.8, side:THREE.DoubleSide}), stem:M(0x557a2c), plaque:M(0xf3f3f1),
+  leaf:new THREE.MeshStandardMaterial({vertexColors:true, roughness:.5, side:THREE.DoubleSide}),
+  water:M(0x2f7fd8,{roughness:.35}), treat:M(0xe0a020,{roughness:.35})
+};
+const shadowed = o => { o.traverse(m => { if(m.isMesh){ m.castShadow = true; m.receiveShadow = true; } }); return o; };
+const box = (w,h,d,m,x=0,y=0,z=0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), m); b.position.set(x,y,z); return b; };
+function cylGeo(r0, r1, len, axis='y', c=[0,0,0], sign=1, seg=40){
+  const g = new THREE.CylinderGeometry(r1, r0, len, seg); g.translate(0, len/2, 0);
+  if(axis==='x') g.rotateZ(-Math.PI/2*sign); else if(axis==='z') g.rotateX(Math.PI/2*sign); else if(sign<0) g.rotateX(Math.PI);
+  g.translate(...c); return g;
+}
+const cyl = (r0,r1,len,m,axis,c,sign,seg) => new THREE.Mesh(cylGeo(r0,r1,len,axis,c,sign,seg), m);
+function merge(geos){
+  const P = [], N = [], I = []; let o = 0;
+  geos.forEach(g => {
+    const p = g.attributes.position.array, n = g.attributes.normal.array, idx = g.index.array;
+    for(let i=0;i<p.length;i++){ P.push(p[i]); N.push(n[i]); }
+    for(let i=0;i<idx.length;i++) I.push(idx[i] + o);
+    o += p.length/3; g.dispose();
+  });
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(P,3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(N,3)); out.setIndex(I); return out;
+}
+function rng(seed){ seed = seed % 2147483647 || 1; return () => (seed = (seed*16807) % 2147483647) / 2147483647; }
+let SPEED = 1;
+
+// ---------- QR textures ----------
+const qrCache = {};
+function qrTexture(id){
+  if(qrCache[id]) return qrCache[id];
+  const rows = QR[id], n = rows.length, q = 2, px = 10, size = (n + q*2)*px;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.fillStyle = '#f4f4f2'; g.fillRect(0,0,size,size); g.fillStyle = '#111';
+  rows.forEach((r,y) => [...r].forEach((v,x) => { if(v==='1') g.fillRect((x+q)*px,(y+q)*px,px,px); }));
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return qrCache[id] = t;
+}
+
+// ---------- plants ----------
+const LEAF_OK = [.18,.48,.2], LEAF_SICK = [.62,.55,.14], LEAF_SPOT = [.3,.18,.06];
+const NU = 12, NV = 8, LV = (NU+1)*(NV+1);
+function makePlant(seed){
+  const r = rng(seed*977 + 13), g = new THREE.Group();
+  const H=.18, RB=.075, RT=.1, WALL=.008, outer = z => RB+(RT-RB)*z/H, inner = z => outer(z)-WALL;
+  const prof = [[0,0],[RB-.004,0],[RB,.004],[outer(.15),.15],[outer(.15)+.008,.152],[outer(H)+.008,H-.002],
+    [outer(H)+.006,H],[inner(H)+.001,H],[inner(H),H-.002],[inner(.012),.016],[inner(.012)-.004,.012],[0,.012]].map(([a,b]) => new THREE.Vector2(a,b));
+  g.add(new THREE.Mesh(new THREE.LatheGeometry(prof, 40), mat.pot));
+  const soilMat = M(0x6b4a2e, {roughness:1});
+  g.add(cyl(inner(.012)-.003, inner(.15)-.003, .138, soilMat, 'y', [0,.012,0], 1, 32));
+
+  const SOIL = .15, TH = .34 + r()*.06, pts = [], ph = r()*6;
+  for(let i=0;i<16;i++){ const t = i/15; pts.push(new THREE.Vector3(.006*Math.sin(t*5+ph), SOIL - .004 + TH*t, .008*Math.sin(t*3.5+ph))); }
+  const trunk = new THREE.CatmullRomCurve3(pts), stems = [new THREE.TubeGeometry(trunk, 32, .0065, 8)];
+  const up = new THREE.Vector3(0,1,0), P = [], I = [], UV = [], meta = [];
+  function leaf(base, dir, L, W, tilt, droop){
+    const start = P.length/3;
+    const fwd = dir.clone().multiplyScalar(Math.cos(tilt)).addScaledVector(up, Math.sin(tilt));
+    const side = new THREE.Vector3().crossVectors(up, dir).normalize();
+    for(let i=0;i<=NU;i++){
+      const t = i/NU, w = W*Math.pow(Math.sin(Math.PI*t), .65)*(1 - .25*t);
+      for(let j=0;j<=NV;j++){
+        const u = -1 + 2*j/NV;
+        const p = base.clone().addScaledVector(fwd, t*L).addScaledVector(side, u*w/2).addScaledVector(up, Math.abs(u)*w*.2 - t*t*L*droop);
+        P.push(p.x, p.y, p.z); UV.push(t, (u+1)/2);
+      }
+    }
+    for(let i=0;i<NU;i++) for(let j=0;j<NV;j++){ const a = start + i*(NV+1)+j, b = a+1, c = a+NV+1, d = c+1; I.push(a,b,d, a,d,c); }
+    const mid = base.clone().addScaledVector(fwd, L*.5).addScaledVector(up, -.25*L*droop);
+    meta.push({start, mid, dir:dir.clone()});
+  }
+  const a0 = r()*6.28, NL = 12;
+  for(let k=0;k<NL;k++){
+    const t = .25 + .75*k/(NL-1), node = trunk.getPoint(t), ang = a0 + k*2.399963;
+    const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang)), size = 1 - .45*k/(NL-1);
+    const end = node.clone().addScaledVector(dir, .03*size).add(new THREE.Vector3(0, .025*size, 0));
+    stems.push(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(node, node.clone().lerp(end,.5).add(new THREE.Vector3(0,.006,0)), end), 5, .0025, 5));
+    leaf(end, dir, .15*size*(.9+r()*.2), .075*size, .35+.6*k/(NL-1), .35);
+  }
+  leaf(trunk.getPoint(1), new THREE.Vector3(1,0,0), .07, .03, 1.3, .1);
+  g.add(new THREE.Mesh(merge(stems), mat.stem));
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(P,3));
+  lg.setAttribute('uv', new THREE.Float32BufferAttribute(UV,2));
+  const healthy = new Float32Array(P.length);
+  for(let v=0; v<P.length/3; v++){ const t = UV[v*2], k = .9 + .2*t; healthy[v*3] = LEAF_OK[0]*k; healthy[v*3+1] = LEAF_OK[1]*k; healthy[v*3+2] = LEAF_OK[2]*k; }
+  lg.setAttribute('color', new THREE.BufferAttribute(healthy.slice(), 3));
+  lg.setIndex(I); lg.computeVertexNormals();
+  g.add(new THREE.Mesh(lg, mat.leaf));
+
+  // weed growing in the front of the pot
+  const wx = (r() - .5)*.06, wz = .055, blades = [];
+  for(let b=0;b<7;b++){
+    const cg = new THREE.ConeGeometry(.006, .05 + r()*.035, 4); cg.translate(0, .03, 0);
+    cg.rotateZ((r()-.5)*1.1); cg.rotateY(r()*6.28); cg.rotateX((r()-.5)*.6); blades.push(cg);
+  }
+  for(let b=0;b<4;b++){
+    const lb = new THREE.SphereGeometry(.014, 8, 6); lb.scale(1, .18, .45); lb.translate(.014, .004, 0); lb.rotateY(b*1.57 + r()); blades.push(lb);
+  }
+  const weedMat = M(0x8dbb3a, {roughness:.6});
+  const weed = new THREE.Mesh(merge(blades), weedMat); weed.position.set(wx, SOIL, wz);
+  g.add(weed);
+  shadowed(g);
+  return {group:g, leafGeo:lg, healthy, meta, weed, weedMat, soilMat, weedTop:new THREE.Vector3(wx, SOIL + .045, wz)};
+}
+
+// ---------- animations queue ----------
+const anims = [];
+function animate(dur, fn){ return new Promise(res => anims.push({t:0, dur, fn, res})); }
+
+function setDisease(plant, leaves){
+  const col = plant.leafGeo.attributes.color;
+  leaves.forEach(li => {
+    const m = plant.meta[li], uv = plant.leafGeo.attributes.uv.array;
+    for(let v=m.start; v<m.start+LV; v++){
+      const t = uv[v*2], u = uv[v*2+1];
+      const spot = Math.sin(t*23 + li*3)*Math.sin(u*17 + li) > .45;
+      const c = spot ? LEAF_SPOT : LEAF_SICK;
+      col.array[v*3] = c[0]; col.array[v*3+1] = c[1]; col.array[v*3+2] = c[2];
+    }
+  });
+  col.needsUpdate = true;
+}
+function healLeaf(plant, li){
+  const col = plant.leafGeo.attributes.color, m = plant.meta[li];
+  const from = col.array.slice(m.start*3, (m.start+LV)*3);
+  return animate(2200, t => {
+    for(let k=0; k<LV*3; k++) col.array[m.start*3+k] = from[k] + (plant.healthy[m.start*3+k] - from[k])*t;
+    col.needsUpdate = true;
+  });
+}
+function resetLeaves(plant){ plant.leafGeo.attributes.color.array.set(plant.healthy); plant.leafGeo.attributes.color.needsUpdate = true; }
+
+// ---------- robot ----------
+const BODY_Y0 = .10, BODY_H = .30, BEV = .03, BODY_TOP = BODY_Y0 + BODY_H + 2*BEV, SH = BODY_TOP + .37, L1 = .5, L2 = .45;
+const deg = Math.PI/180;
+function makeEffector(){
+  const ee = new THREE.Group();
+  ee.add(box(.11,.08,.12, mat.orange,.055,0,0));
+  // two front nozzles side by side: water (blue) and weed/leaf spray (amber)
+  const tips = {};
+  [['water', .028, mat.water], ['treat', -.028, mat.treat]].forEach(([kind, z, m]) => {
+    ee.add(cyl(.016,.016,.012, mat.metal,'x',[.11,-.008,z]), cyl(.0095,.0095,.034, mat.metal,'x',[.122,-.008,z]),
+      cyl(.0095,.0035,.016, m,'x',[.156,-.008,z]), cyl(.0045,.0045,.13, m,'x',[-.02,-.03,z*1.6]), box(.012,.03,.012, m,.104,-.016,z*1.3));
+    const tip = new THREE.Object3D(); tip.position.set(.174,-.008,z); ee.add(tip); tips[kind] = tip;
+  });
+  const cam = new THREE.Group(); cam.position.set(.055,.04,0); ee.add(cam);
+  cam.add(box(.04,.012,.024, mat.grey,0,.006,0), box(.065,.043,.06, mat.black,-.0025,.0335,0),
+    cyl(.017,.017,.025, mat.black,'x',[.03,.0335,0]), cyl(.013,.013,.002, mat.glass,'x',[.055,.0335,0]));
+  const led = new THREE.Mesh(new THREE.SphereGeometry(.004,10,8), new THREE.MeshBasicMaterial({color:0x3be37f})); led.position.set(.01,.057,-.02); cam.add(led);
+  shadowed(ee);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(.11,.5,32,1,true),
+    new THREE.MeshBasicMaterial({color:0x34c27a, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide}));
+  cone.geometry.translate(0,-.25,0); cone.geometry.rotateZ(Math.PI/2); cone.position.set(.057,.0335,0); cam.add(cone);
+  const toolCam = new THREE.PerspectiveCamera(58, 1.5, .01, 30); toolCam.position.set(.06,.0335,0); toolCam.rotation.y = -Math.PI/2; cam.add(toolCam);
+  return {ee, tips, cam, cone, toolCam, led};
+}
+const SCISSOR = {L:.5, stages:3, y0:BODY_TOP + .02, min:.52, max:1.36};
+function buildRobot(){
+  const R = {group:new THREE.Group(), wheels:[], spray:null, scanning:false, current:null, panel:false, say:'Idle. Run a care cycle to start.', sayCls:''};
+  const robot = R.group;
+  { const w = .56, d = .56, rr = .07, s = new THREE.Shape();
+    s.moveTo(-w/2+rr,-d/2); s.lineTo(w/2-rr,-d/2); s.quadraticCurveTo(w/2,-d/2,w/2,-d/2+rr); s.lineTo(w/2,d/2-rr); s.quadraticCurveTo(w/2,d/2,w/2-rr,d/2);
+    s.lineTo(-w/2+rr,d/2); s.quadraticCurveTo(-w/2,d/2,-w/2,d/2-rr); s.lineTo(-w/2,-d/2+rr); s.quadraticCurveTo(-w/2,-d/2,-w/2+rr,-d/2);
+    const g = new THREE.ExtrudeGeometry(s, {depth:BODY_H, bevelEnabled:true, bevelThickness:BEV, bevelSize:BEV, bevelSegments:4, curveSegments:8});
+    g.rotateX(-Math.PI/2); g.translate(0, BODY_Y0 + BEV, 0); robot.add(new THREE.Mesh(g, mat.body)); }
+  [[-.19,1],[.19,1],[-.19,-1],[.19,-1]].forEach(([x,s]) => {
+    const w = new THREE.Group(); w.position.set(x, .13, s*.335);
+    w.add(cyl(.13,.13,.07, mat.tyre,'z',[0,0,-.035],1,36), cyl(.075,.075,.074, mat.body,'z',[0,0,-.037],1,28));
+    for(let k=0;k<5;k++){ const b = box(.012,.05,.075, mat.grey); b.rotation.z = k*1.2566; b.position.set(Math.sin(k*1.2566)*.045, Math.cos(k*1.2566)*.045, 0); w.add(b); }
+    robot.add(w); R.wheels.push(w);
+  });
+
+  // ---- rig 1: 5-axis arm ----
+  const arm = R.armRig = new THREE.Group(); robot.add(arm);
+  arm.add(cyl(.2,.2,.05, mat.dark,'y',[0,BODY_TOP,0]), cyl(.13,.11,.15, mat.grey,'y',[0,BODY_TOP+.05,0]));
+  const j1 = new THREE.Group(); j1.position.y = BODY_TOP + .2; arm.add(j1);
+  j1.add(cyl(.12,.12,.04, mat.grey), cyl(.11,.11,.08, mat.orange,'y',[0,.04,0]), box(.14,.16,.06, mat.orange,0,.12,-.11), box(.14,.16,.06, mat.orange,0,.12,.11));
+  const j2 = new THREE.Group(); j2.position.y = .17; j1.add(j2);
+  j2.add(cyl(.075,.075,.32, mat.grey,'z',[0,0,-.16]), box(.11,.5,.13, mat.orange,0,.25,0), cyl(.065,.065,.15, mat.grey,'z',[0,.5,-.075]));
+  const j3 = new THREE.Group(); j3.position.y = .5; j2.add(j3);
+  j3.add(cyl(.06,.06,.14, mat.orange,'z',[0,0,-.07]), box(.08,.09,.1, mat.orange,-.04,0,0), box(.42,.08,.09, mat.orange,.21,0,0));
+  const j4 = new THREE.Group(); j4.position.x = .45; j3.add(j4);
+  j4.add(cyl(.045,.045,.12, mat.grey,'z',[0,0,-.06]), box(.035,.08,.015, mat.orange,-.0175,0,-.0525), box(.035,.08,.015, mat.orange,-.0175,0,.0525), cyl(.035,.035,.08, mat.orange,'x'));
+  const j5 = new THREE.Group(); j5.position.x = .08; j4.add(j5);
+  j5.add(cyl(.045,.045,.015, mat.grey,'x'), cyl(.04,.04,.02, mat.orange,'x',[.015,0,0]));
+  const armEff = makeEffector(); armEff.ee.position.x = .035; j5.add(armEff.ee);
+
+  // ---- rig 2: scissor lift carrying a linear actuator ----
+  const lin = R.linRig = new THREE.Group(); robot.add(lin);
+  lin.add(box(.46,.02,.56, mat.grey, 0, BODY_TOP + .01, 0));
+  const bars = [], pins = [];
+  for(let k=0;k<SCISSOR.stages;k++){
+    for(const s of [-1,1]) for(const b of [-1,1]){ const m = box(.022,.032,SCISSOR.L, mat.orange); m.userData = {k, s, b}; lin.add(m); bars.push(m); }
+    const pin = cyl(.013,.013,.42, mat.metal,'x',[-.21,0,0],1,16); pin.userData = {k}; lin.add(pin); pins.push(pin);
+  }
+  const plat = new THREE.Group(); lin.add(plat);
+  plat.add(box(.5,.03,.56, mat.grey, 0,-.015,0),                      // top platform
+    box(.12,.1,.52, mat.orange, 0,.05,.06),                              // actuator housing (z -0.2 to 0.32)
+    box(.126,.012,.48, mat.grey, 0,.104,.06),                            // rail cover
+    box(.09,.09,.08, mat.black, 0,.05,.36),                              // drive motor
+    cyl(.036,.036,.03, mat.metal,'z',[0,.05,-.2],-1,24));                // front collar
+  const rod = cyl(.022,.022,.5, mat.metal,'z',[0,0,0],-1,24); rod.position.y = .05; plat.add(rod);
+  const wrist = new THREE.Group(); wrist.position.y = .05; plat.add(wrist);
+  wrist.add(cyl(.032,.032,.09, mat.grey,'x',[-.045,0,0],1,24));
+  const turn = new THREE.Group(); turn.rotation.y = Math.PI/2; wrist.add(turn);
+  const tilt = new THREE.Group(); turn.add(tilt);
+  tilt.add(box(.09,.05,.06, mat.orange, .045,0,0));
+  const linEff = makeEffector(); linEff.ee.position.x = .09; tilt.add(linEff.ee);
+  shadowed(lin); shadowed(arm);
+
+  R.rigs = {arm:armEff, linear:linEff};
+  R.pose = {x:0, z:.85, j1:135, j2:-8, j3:-12, j4:20, j5:0, lift:.62, ext:0, tilt:10}; R.lastX = 0;
+  R.apply = () => {
+    const p = R.pose; robot.position.set(p.x, 0, p.z);
+    j1.rotation.y = p.j1*deg; j2.rotation.z = -p.j2*deg; j3.rotation.z = -p.j3*deg; j4.rotation.z = -p.j4*deg; j5.rotation.x = p.j5*deg;
+    const P = Math.max(SCISSOR.min, Math.min(SCISSOR.max, p.lift)), h = Math.max(.004, (P - .03 - SCISSOR.y0)/SCISSOR.stages);
+    const th = Math.asin(Math.min(.99, h/SCISSOR.L));
+    bars.forEach(m => { const {k, s, b} = m.userData; m.position.set(s*.19, SCISSOR.y0 + h*(k + .5), 0); m.rotation.x = b*th; });
+    pins.forEach(m => m.position.y = SCISSOR.y0 + h*(m.userData.k + .5));
+    plat.position.y = P; rod.position.z = .3 - p.ext; wrist.position.z = -.2 - p.ext; tilt.rotation.z = -p.tilt*deg;
+    const dx = p.x - R.lastX; R.lastX = p.x; R.wheels.forEach(w => w.rotation.z -= dx/.13);
+  };
+  return R;
+}
+function setRig(R, kind){
+  R.kind = kind; R.armRig.visible = kind === 'arm'; R.linRig.visible = kind === 'linear';
+  Object.values(R.rigs).forEach(e => e.cone.material.opacity = 0);
+  Object.assign(R, R.rigs[kind]);
+}
+const stow = R => R.kind === 'arm' ? {j2:-8, j3:-12, j4:20, j5:0, j1:90} : {lift:.62, ext:0, tilt:10};
+const homePose = R => R.kind === 'arm' ? {j1:135} : {};
+// small sweeping offsets used while inspecting
+const sweep = (R, p, a) => R.kind === 'arm' ? {j1:p.j1 + 12*a, j4:p.j4 - 9*a} : {x:p.x + .07*a, tilt:p.tilt - 7*a};
+
+// Planner in the row's local frame. W = wrist pivot, pitch = tool angle below horizontal (deg)
+function solve(R, W, pitch, x){
+  if(R.kind === 'linear'){
+    return {x:W.x, lift:Math.max(SCISSOR.min, Math.min(SCISSOR.max, W.y - .05)), ext:Math.max(0, Math.min(.5, R.pose.z - .2 - W.z)), tilt:pitch};
+  }
+  const dx = W.x - x, dz = W.z - R.pose.z, r = Math.hypot(dx, dz), h = W.y - SH;
+  const yaw = Math.atan2(-dz, dx)/deg, D = Math.max(.08, Math.min(Math.hypot(r,h), L1+L2-.001));
+  const gam = Math.atan2(r, h), alpha = Math.acos(Math.max(-1, Math.min(1, (L1*L1 + D*D - L2*L2)/(2*L1*D))));
+  const a1 = gam - alpha, er = L1*Math.sin(a1), eh = L1*Math.cos(a1);
+  const a3 = Math.atan2(r - er, h - eh) - a1 - Math.PI/2;
+  const a4 = (90 + pitch)*deg - (a1 + Math.PI/2 + a3);
+  return {x, j1:yaw, j2:a1/deg, j3:a3/deg, j4:a4/deg, j5:0};
+}
+// aim the nozzles at point T (local), keeping clear of the shelves and the robot itself
+const TOOL = .29;
+function aim(R, st, T, pitch, gap){
+  const lower = st.lvl === 0, lin = R.kind === 'linear', p = pitch*deg, reach = TOOL + gap;
+  let wy = T.y + reach*Math.sin(p), wz = T.z + reach*Math.cos(p);
+  if(lower){ wy = lin ? Math.max(.57, Math.min(wy, .66)) : Math.min(wy, .70); wz = Math.max(wz, st.base.z + (lin ? .2 : .32)); }
+  else { wy = Math.min(wy, 1.40); wz = Math.max(wz, st.base.z + .25); }
+  const pt = Math.atan2(wy - T.y, wz - T.z)/deg;
+  return solve(R, new THREE.Vector3(T.x, wy, wz), pt, st.base.x);
+}
+
+// ---------- particles (world space) ----------
+const NP = 2400, pPos = new Float32Array(NP*3), pCol = new Float32Array(NP*3), pVel = new Float32Array(NP*3), pLife = new Float32Array(NP), pG = new Float32Array(NP);
+for(let i=0;i<NP;i++) pPos[i*3+1] = -50;
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol,3));
+const dotTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
+const points = new THREE.Points(pGeo, new THREE.PointsMaterial({size:.02, map:dotTex, vertexColors:true, transparent:true, opacity:.8, depthWrite:false}));
+points.frustumCulled = false; scene.add(points);
+let pNext = 0;
+const SPRAY = {water:{rate:320, speed:1.0, spread:.2, g:.9, col:[.7,.86,1]}, treat:{rate:160, speed:1.15, spread:.06, g:.5, col:[1,.74,.18]}};
+const tq = new THREE.Quaternion(), tv = new THREE.Vector3(), fw = new THREE.Vector3();
+function emit(R, kind, dt){
+  const S = SPRAY[kind]; R.ee.getWorldQuaternion(tq); fw.set(1,0,0).applyQuaternion(tq); R.tips[kind].getWorldPosition(tv);
+  const n = Math.round(S.rate*dt + Math.random());
+  for(let k=0;k<n;k++){
+    const i = pNext = (pNext+1) % NP, sp = S.speed*(.8 + Math.random()*.4);
+    pPos[i*3] = tv.x; pPos[i*3+1] = tv.y; pPos[i*3+2] = tv.z;
+    pVel[i*3] = (fw.x + (Math.random()-.5)*S.spread*2)*sp; pVel[i*3+1] = (fw.y + (Math.random()-.5)*S.spread*2)*sp; pVel[i*3+2] = (fw.z + (Math.random()-.5)*S.spread*2)*sp;
+    pCol[i*3] = S.col[0]; pCol[i*3+1] = S.col[1]; pCol[i*3+2] = S.col[2]; pLife[i] = .55 + Math.random()*.35; pG[i] = S.g;
+  }
+}
+function stepParticles(dt){
+  const drag = Math.exp(-1.4*dt);
+  for(let i=0;i<NP;i++){
+    if(pLife[i] <= 0) continue;
+    pLife[i] -= dt; if(pLife[i] <= 0){ pPos[i*3+1] = -50; continue; }
+    pVel[i*3] *= drag; pVel[i*3+2] *= drag; pVel[i*3+1] = pVel[i*3+1]*drag - pG[i]*dt;
+    pPos[i*3] += pVel[i*3]*dt; pPos[i*3+1] += pVel[i*3+1]*dt; pPos[i*3+2] += pVel[i*3+2]*dt;
+  }
+  pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
+}
+
+// ---------- world: rows of shelf modules, each row with its own robot ----------
+const SHELF = {w:1.3, d:.55, t:.05, levels:[.10,.78,1.50], postX:[-.55,0,.55]};
+const SPECIES = ['Basil','Mint','Sweet pepper','Chilli','Lettuce','Kale','Coriander','Parsley','Thyme'];
+const MOD_PITCH = 1.42, ROW_PITCH = 2.3;
+let rows = [], world = null, mode = 'single', focus = null, RIG = 'arm';
+const tally = {checked:0, watered:0, weeds:0, leaves:0};
+
+function buildModule(row, mi, x0, ri, rand, demo){
+  const sh = [];
+  sh.push((() => { const g = new THREE.BoxGeometry(1.15,.10,.42); g.translate(0,.05,-.02); return g; })());
+  SHELF.levels.forEach(y => { const g = new THREE.BoxGeometry(SHELF.w, SHELF.t, SHELF.d); g.translate(0, y + SHELF.t/2, 0); sh.push(g); });
+  SHELF.postX.forEach(x => { const top = SHELF.levels[2], bot = SHELF.levels[0] + SHELF.t;
+    const g = new THREE.BoxGeometry(.16, top-bot, .04); g.translate(x, (top+bot)/2, -.18); sh.push(g);
+    const t = new THREE.BoxGeometry(.13,.10,.03); t.translate(x, top + SHELF.t + .05, -.18); sh.push(t); });
+  const shelf = shadowed(new THREE.Mesh(merge(sh), mat.shelf)); shelf.position.x = x0; row.group.add(shelf);
+  const order = [['A1',0,-1],['A2',0,1],['B2',1,1],['B1',1,-1]];
+  return order.map(([pos, lvl, s], k) => {
+    const id = `R${ri+1}M${mi+1}-${pos}`, x = x0 + .28*s, y = SHELF.levels[lvl] + SHELF.t, z = .02;
+    const plant = makePlant(ri*100 + mi*10 + k + 3); plant.group.position.set(x, y, z); row.group.add(plant.group);
+    const plaque = new THREE.Group();
+    const face = new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.006), [mat.plaque,mat.plaque,mat.plaque,mat.plaque,new THREE.MeshStandardMaterial({map:qrTexture(id), roughness:.6}),mat.plaque]);
+    face.castShadow = true; plaque.add(face);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.072,.08,4,1,Math.PI/4), new THREE.MeshBasicMaterial({color:0x34c27a, transparent:true, opacity:0}));
+    ring.position.z = .006; plaque.add(ring);
+    plaque.position.set(x + (s < 0 ? .16 : -.16), y - .035, SHELF.d/2 + .004); row.group.add(plaque);
+    const st = {id, species:SPECIES[(ri*4 + mi*3 + k) % SPECIES.length], plant, ring, lvl, base:new THREE.Vector3(x,y,z), tag:plaque.position.clone(), d:{}};
+    newDay(st, rand, demo ? demo[k] : null);
+    return st;
+  });
+}
+function newDay(st, rand, preset){
+  const d = st.d;
+  const p = preset || {m:18 + rand()*30, weed:rand() < .3, sick:rand() < .28 ? 1 + (rand() < .4 ? 1 : 0) : 0};
+  d.moist = p.m; d.target = 60; d.temp = 19.5 + rand()*5; d.hum = 45 + rand()*25;
+  d.leafState = 'unchecked'; d.weedState = 'unchecked'; d.chip = 'Waiting';
+  d.hasWeed = p.weed; st.plant.weed.visible = p.weed; st.plant.weed.scale.set(1,1,1); st.plant.weed.rotation.set(0,0,0); st.plant.weedMat.color.setHex(0x8dbb3a);
+  resetLeaves(st.plant);
+  const front = st.plant.meta.map((m,i) => ({i, s:m.dir.z + (i > 1 && i < 9 ? .5 : -1)})).sort((a,b) => b.s - a.s).map(o => o.i);
+  d.sick = front.slice(0, p.sick); setDisease(st.plant, d.sick);
+  st.ring.material.opacity = 0;
+}
+function buildWorld(m){
+  if(world){ scene.remove(world); world.traverse(o => { if(o.geometry) o.geometry.dispose(); if(o.material && o.material.dispose && !Object.values(mat).includes(o.material)) o.material.dispose(); }); }
+  world = new THREE.Group(); scene.add(world); rows = [];
+  const nRows = m === 'farm' ? 3 : 1, nMods = m === 'farm' ? 3 : 1;
+  const demo = [{m:24, weed:true, sick:0}, {m:41, weed:false, sick:2}, {m:30, weed:false, sick:0}, {m:27, weed:true, sick:1}];
+  for(let ri=0; ri<nRows; ri++){
+    const row = {group:new THREE.Group(), stations:[]}; row.group.position.z = -ri*ROW_PITCH; world.add(row.group);
+    const rand = rng(ri*31 + 7);
+    for(let mi=0; mi<nMods; mi++){
+      const x0 = (mi - (nMods-1)/2)*MOD_PITCH;
+      row.stations.push(...buildModule(row, mi, x0, ri, rand, m === 'single' ? demo : null));
+    }
+    row.home = (nMods-1)/2*MOD_PITCH + .95; row.rand = rand;
+    row.robot = buildRobot(); row.robot.row = row; setRig(row.robot, RIG); row.robot.pose.x = row.home; row.robot.lastX = row.home; row.robot.apply();
+    row.group.add(row.robot.group); rows.push(row);
+  }
+  const big = m === 'farm';
+  Object.assign(sun.shadow.camera, big ? {left:-4.5, right:4.5, top:4.5, bottom:-4.5, near:.5, far:20} : {left:-2.2, right:2.4, top:2.4, bottom:-1.2, near:.5, far:12});
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.position.set(big ? 3 : 2.2, big ? 6 : 4.2, big ? 2 : 3); sun.target.position.set(0, 0, big ? -2.3 : 0);
+  focus = rows[0].robot; syncUI(); setTally();
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const DEFS = {arm:[['x','Drive',-2.6,2.6,.01,'m'],['j1','J1 waist',-180,180,1,'°'],['j2','J2 shoulder',-90,120,1,'°'],
+  ['j3','J3 elbow',-150,90,1,'°'],['j4','J4 wrist pitch',-120,140,1,'°'],['j5','J5 wrist roll',-180,180,1,'°']],
+  linear:[['x','Drive',-2.6,2.6,.01,'m'],['lift','Scissor lift',SCISSOR.min,SCISSOR.max,.01,'m'],['ext','Actuator reach',0,.5,.01,'m'],['tilt','Nozzle tilt',-10,80,1,'°']]};
+let inputs = {};
+function buildSliders(){ $('rows').innerHTML = ''; inputs = {}; DEFS[RIG].forEach(([k,label,mn,mx,st,unit]) => {
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = `<label for="s-${k}">${label}</label><input id="s-${k}" type="range" min="${mn}" max="${mx}" step="${st}"><output for="s-${k}"></output>`;
+  const inp = row.querySelector('input'), out = row.querySelector('output');
+  inp.addEventListener('input', () => { if(running) stopAll(); focus.pose[k] = +inp.value; focus.apply(); syncUI(); });
+  inputs[k] = {inp, out, unit}; $('rows').appendChild(row);
+}); $('joints').querySelector('summary').textContent = RIG === 'arm' ? 'Joints and drive' : 'Lift, reach and drive'; }
+function syncUI(){
+  if(!focus) return;
+  for(const k in inputs){ const {inp, out, unit} = inputs[k], v = focus.pose[k]; inp.value = v; out.textContent = unit === 'm' ? v.toFixed(2)+' m' : Math.round(v)+'°'; }
+}
+function say(R, text, cls=''){ R.say = text; R.sayCls = cls; }
+function setTally(){
+  const total = rows.reduce((n,r) => n + r.stations.length, 0);
+  $('tally').innerHTML = `<span>Checked <b>${tally.checked}</b> of ${total}</span><span>Watered <b>${tally.watered}</b></span><span>Weeds removed <b>${tally.weeds}</b></span><span>Leaves treated <b>${tally.leaves}</b></span>`;
+}
+let lastPanel = '';
+function renderPanel(){
+  const R = focus; if(!R) return;
+  $('statusText').textContent = (mode === 'farm' ? `Row ${rows.indexOf(R.row)+1}: ` : '') + R.say;
+  $('status').className = 'status ' + R.sayCls;
+  const st = R.current, open = !!(st && R.panel);
+  $('data').classList.toggle('open', open);
+  if(!st) return;
+  const d = st.d;
+  const leaf = {unchecked:['Not checked',''], checking:['Checking…',''], ok:['Healthy','good'], found:[`Leaf spot on ${d.sick.length}`,'flag'], treated:['Treated','good']}[d.leafState];
+  const weed = {unchecked:['Not checked',''], checking:['Checking…',''], ok:['None found','good'], found:['1 in pot','flag'], removed:['Removed','good']}[d.weedState];
+  const chipCls = {Watering:'water', 'Removing weed':'treat', 'Treating leaves':'treat', Healthy:'ok'}[d.chip] || '';
+  const key = [st.id, d.moist.toFixed(0), leaf[0], weed[0], d.chip].join('|');
+  if(key === lastPanel) return; lastPanel = key;
+  $('dId').textContent = st.id; $('dSp').textContent = st.species;
+  $('dChip').textContent = d.chip; $('dChip').className = 'chip ' + chipCls;
+  $('dMoist').textContent = `${Math.round(d.moist)}% of ${d.target}%`;
+  $('dFill').style.width = Math.min(100, d.moist) + '%';
+  $('dTemp').textContent = d.temp.toFixed(1) + ' °C'; $('dHum').textContent = Math.round(d.hum) + '%';
+  $('dLeaf').textContent = leaf[0]; $('dLeaf').className = leaf[1]; $('dWeed').textContent = weed[0]; $('dWeed').className = weed[1];
+}
+
+// ---------- motion ----------
+let running = false, token = 0;
+const ease = t => t<.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+const frame1 = () => new Promise(r => requestAnimationFrame(r));
+async function wait(ms, my){ const t0 = performance.now(); while(performance.now() - t0 < ms/SPEED){ if(my !== token) return false; await frame1(); } return my === token; }
+async function move(R, target, dur, my){
+  const from = Object.assign({}, R.pose), keys = Object.keys(target).filter(k => k in R.pose);
+  keys.forEach(k => { if(k === 'j1' || k === 'j5'){ let d = target[k] - from[k]; d = ((d % 360) + 540) % 360 - 180; target[k] = from[k] + d; } });
+  let t = 0, last = performance.now();
+  while(t < 1){
+    if(my !== token) return false;
+    await frame1(); const now = performance.now(); t = Math.min(1, t + (now - last)*SPEED/dur); last = now;
+    const e = ease(t); keys.forEach(k => R.pose[k] = from[k] + (target[k] - from[k])*e); R.apply(); if(R === focus) syncUI();
+  }
+  return my === token;
+}
+
+async function tend(R, st, my){
+  const d = st.d, ok = v => v && my === token;
+  R.current = st; R.panel = false; d.chip = 'Waiting';
+  say(R, `Driving to ${st.id}`, 'live');
+  if(!ok(await move(R, Object.assign({x:st.base.x}, stow(R)), 1700, my))) return false;
+
+  // 1. read the QR tag, then open the plant's data
+  say(R, `Reading the QR tag on ${st.id}`, 'live'); d.chip = 'Reading tag';
+  const sc = st.lvl === 0 ? [.30,.14,55] : [.17,.34,26];
+  const scanPose = R.kind === 'linear' ? aim(R, st, st.tag, sc[2], .1) : solve(R, new THREE.Vector3(st.tag.x, st.tag.y + sc[0], st.tag.z + sc[1]), sc[2], st.base.x);
+  if(!ok(await move(R, scanPose, 1400, my))) return false;
+  R.scanning = true; if(!ok(await wait(1100, my))) return false; R.scanning = false;
+  st.ring.material.opacity = 1; R.panel = true; d.chip = 'Data loaded';
+  say(R, `${st.id} found. Loading sensor data.`, 'live');
+  if(!ok(await wait(900, my))) return false;
+
+  // 2. camera inspects the leaves and soil
+  say(R, 'Inspecting leaves and soil', 'live'); d.chip = 'Inspecting'; d.leafState = d.weedState = 'checking';
+  const lookFrom = st.lvl === 0 ? new THREE.Vector3(st.base.x, .66, st.base.z + .46) : new THREE.Vector3(st.base.x, st.base.y + .56, st.base.z + .4);
+  const focusPt = st.base.clone().add(new THREE.Vector3(0, .3, 0));
+  const look = solve(R, lookFrom, Math.atan2(lookFrom.y - focusPt.y, lookFrom.z - focusPt.z)/deg, st.base.x);
+  if(!ok(await move(R, look, 1300, my))) return false;
+  R.scanning = true;
+  if(!ok(await move(R, sweep(R, look, 1), 900, my))) return false;
+  if(!ok(await move(R, sweep(R, look, -1), 1400, my))) return false;
+  if(!ok(await move(R, sweep(R, look, 0), 700, my))) return false;
+  R.scanning = false;
+  d.leafState = d.sick.length ? 'found' : 'ok'; d.weedState = d.hasWeed ? 'found' : 'ok';
+  const issues = [d.moist < d.target ? 'dry soil' : '', d.hasWeed ? 'a weed' : '', d.sick.length ? 'leaf spot' : ''].filter(Boolean);
+  say(R, issues.length ? `Found ${issues.join(', ').replace(/, ([^,]*)$/, ' and $1')}` : 'Everything looks healthy', 'live');
+  if(!ok(await wait(900, my))) return false;
+
+  // 3. water until the moisture reaches target
+  if(d.moist < d.target){
+    say(R, `Watering until soil moisture reaches ${d.target}%`, 'water'); d.chip = 'Watering';
+    if(!ok(await move(R, aim(R, st, st.base.clone().add(new THREE.Vector3(0,.17,.03)), 36, .12), 1200, my))) return false;
+    const b = Object.assign({}, R.pose); R.spray = 'water'; let t = 0, lastT = performance.now();
+    while(d.moist < d.target){
+      if(my !== token){ R.spray = null; return false; }
+      await frame1(); const nowT = performance.now(), dt = Math.min(.05, (nowT - lastT)/1000)*SPEED; lastT = nowT;
+      t += dt; d.moist = Math.min(d.target, d.moist + 9*dt);
+      if(R.kind === 'arm'){ R.pose.j1 = b.j1 + 6*Math.sin(t*2.2); R.pose.j5 = b.j5 + 10*Math.sin(t*3.1); }
+      else { R.pose.x = b.x + .035*Math.sin(t*2.2); R.pose.tilt = b.tilt + 5*Math.sin(t*3.1); }
+      R.apply();
+    }
+    R.spray = null; tally.watered++; setTally();
+    if(!ok(await move(R, R.kind === 'arm' ? {j1:b.j1, j5:b.j5} : {x:b.x, tilt:b.tilt}, 400, my))) return false;
+  } else { say(R, 'Soil moisture is fine. No water needed.', 'live'); if(!ok(await wait(800, my))) return false; }
+
+  // 4. spot-spray the weed with a short burst
+  if(d.hasWeed){
+    say(R, 'Spot-spraying the weed', 'treat'); d.chip = 'Removing weed';
+    const wt = st.base.clone().add(st.plant.weedTop);
+    if(!ok(await move(R, aim(R, st, wt, 38, .08), 1200, my))) return false;
+    R.spray = 'treat'; if(!ok(await wait(450, my))) { R.spray = null; return false; } R.spray = null;
+    const w = st.plant.weed, wm = st.plant.weedMat, c0 = new THREE.Color(0x8dbb3a), c1 = new THREE.Color(0x6b4f1f);
+    await animate(1500/SPEED, t => { wm.color.copy(c0).lerp(c1, Math.min(1, t*1.6)); w.scale.set(1, 1 - .7*t, 1); w.rotation.z = .5*t; });
+    await animate(500/SPEED, t => w.scale.setScalar(.3*(1 - t) + .001));
+    w.visible = false; d.hasWeed = false; d.weedState = 'removed'; tally.weeds++; setTally();
+  }
+
+  // 5. treat any leaves with spots
+  if(d.sick.length){
+    d.chip = 'Treating leaves';
+    for(const li of d.sick){
+      say(R, 'Treating a leaf with leaf spot', 'treat');
+      const lt = st.base.clone().add(st.plant.meta[li].mid);
+      if(!ok(await move(R, aim(R, st, lt, 22, .07), 1100, my))) return false;
+      R.spray = 'treat'; if(!ok(await wait(380, my))) { R.spray = null; return false; } R.spray = null;
+      healLeaf(st.plant, li); tally.leaves++; setTally();
+      if(!ok(await wait(350, my))) return false;
+    }
+    if(!ok(await wait(1500, my))) return false;
+    d.sick = []; d.leafState = 'treated';
+  }
+  d.chip = 'Healthy'; say(R, `${st.id} is healthy`, 'live'); tally.checked++; setTally();
+  if(!ok(await wait(900, my))) return false;
+  return true;
+}
+async function runRow(row, my, delay){
+  const R = row.robot;
+  if(!await wait(delay, my)) return;
+  for(const st of row.stations){ if(!await tend(R, st, my)) return; }
+  R.panel = false; say(R, 'Row finished. Returning to the charging spot.', 'live');
+  if(!await move(R, Object.assign({x:row.home}, stow(R), homePose(R)), 1800, my)) return;
+  say(R, 'Row complete. All plants checked and treated.');
+}
+async function runAll(){
+  running = true; const my = ++token;
+  $('run').textContent = 'Stop'; $('run').classList.add('stop'); setManual(null); setScan(false);
+  if(rows.every(r => r.stations.every(st => st.d.chip === 'Healthy')))
+    rows.forEach(r => r.stations.forEach(st => newDay(st, r.rand)));
+  rows.forEach(r => r.stations.forEach(st => { st.ring.material.opacity = 0; st.d.leafState = st.d.weedState = 'unchecked'; st.d.chip = 'Waiting'; }));
+  Object.assign(tally, {checked:0, watered:0, weeds:0, leaves:0}); setTally();
+  await Promise.all(rows.map((r, i) => runRow(r, my, i*700)));
+  if(my === token){ running = false; $('run').textContent = 'Run care cycle'; $('run').classList.remove('stop'); }
+}
+function stopAll(){
+  running = false; token++; rows.forEach(r => { r.robot.spray = null; r.robot.scanning = false; say(r.robot, 'Stopped. Joints are yours to move.'); });
+  $('run').textContent = 'Run care cycle'; $('run').classList.remove('stop');
+}
+$('run').onclick = () => running ? stopAll() : runAll();
+$('speed').onclick = () => { SPEED = SPEED === 1 ? 2 : 1; $('speed').setAttribute('aria-pressed', SPEED === 2); };
+
+let manual = null;
+function setManual(kind){
+  manual = kind; $('waterBtn').setAttribute('aria-pressed', kind === 'water'); $('treatBtn').setAttribute('aria-pressed', kind === 'treat');
+  if(focus && !running){ focus.spray = kind; say(focus, kind === 'water' ? 'Spraying water.' : kind === 'treat' ? 'Spraying weed and leaf treatment.' : 'Idle.', kind || ''); }
+}
+function setScan(v){ $('scanBtn').setAttribute('aria-pressed', v); if(focus && !running) focus.scanning = v; }
+$('waterBtn').onclick = () => { if(running) stopAll(); setManual(manual === 'water' ? null : 'water'); };
+$('treatBtn').onclick = () => { if(running) stopAll(); setManual(manual === 'treat' ? null : 'treat'); };
+$('scanBtn').onclick = () => { if(running) stopAll(); setScan($('scanBtn').getAttribute('aria-pressed') !== 'true'); };
+
+// ---------- camera views ----------
+const VIEWS = {
+  single:{overview:{t:[.35,.72,.25], yaw:.42, pitch:.36, dist:3.6}, front:{t:[.2,.75,.2], yaw:0, pitch:.1, dist:3.7},
+    side:{t:[.2,.7,.3], yaw:1.45, pitch:.16, dist:3.3}, top:{t:[.2,.3,.3], yaw:.2, pitch:1.35, dist:3.6}},
+  farm:{overview:{t:[0,.5,-2.1], yaw:.55, pitch:.5, dist:9.5}, front:{t:[0,.8,-2.1], yaw:0, pitch:.18, dist:10},
+    side:{t:[0,.6,-2.1], yaw:1.4, pitch:.2, dist:9}, top:{t:[0,0,-2.1], yaw:.1, pitch:1.4, dist:10}},
+  tool:{yaw:.9, pitch:.35, dist:.95}
+};
+let view = 'overview';
+const goal = {t:new THREE.Vector3(...VIEWS.single.overview.t), yaw:.42, pitch:.36, dist:3.6};
+const cur = {t:goal.t.clone(), yaw:goal.yaw, pitch:goal.pitch, dist:goal.dist};
+function setView(v){
+  view = v; document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === v));
+  const p = v === 'tool' ? VIEWS.tool : VIEWS[mode][v];
+  if(p.t) goal.t.set(...p.t); goal.yaw = p.yaw; goal.pitch = p.pitch; goal.dist = p.dist;
+  if(reduce){ cur.t.copy(goal.t); Object.assign(cur, {yaw:goal.yaw, pitch:goal.pitch, dist:goal.dist}); }
+}
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
+$('farmBtn').onclick = () => {
+  stopAll(); setManual(null); setScan(false);
+  mode = mode === 'single' ? 'farm' : 'single';
+  $('farmBtn').textContent = mode === 'farm' ? 'Show single module' : 'Show farm';
+  $('farmBtn').setAttribute('aria-pressed', mode === 'farm');
+  $('watch').hidden = mode !== 'farm'; $('title').textContent = mode === 'farm' ? 'Plant care farm' : 'Plant care cell';
+  buildWorld(mode); setWatch(0); setView(view === 'tool' ? 'tool' : 'overview');
+  rows.forEach(r => say(r.robot, mode === 'farm' ? 'Ready. Three rows, one robot each.' : 'Idle. Run a care cycle to start.'));
+};
+function setWatch(i){ focus = rows[i].robot; lastPanel = ''; document.querySelectorAll('[data-row]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.row === i)); syncUI(); }
+document.querySelectorAll('[data-row]').forEach(b => b.onclick = () => setWatch(+b.dataset.row));
+$('rigBtn').onclick = () => {
+  stopAll(); setManual(null); setScan(false);
+  RIG = RIG === 'arm' ? 'linear' : 'arm';
+  $('rigBtn').textContent = RIG === 'arm' ? 'Switch to scissor lift' : 'Switch to 5-axis arm';
+  $('rigBtn').setAttribute('aria-pressed', RIG === 'linear');
+  rows.forEach(r => { const R = r.robot; setRig(R, RIG); Object.assign(R.pose, stow(R), homePose(R)); R.apply();
+    say(R, RIG === 'arm' ? '5-axis arm fitted.' : 'Scissor lift with linear actuator fitted.'); });
+  buildSliders(); syncUI(); lastPanel = '';
+};
+
+const ptrs = new Map(); let pinch0 = 0;
+canvas.addEventListener('pointerdown', e => { canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY}); canvas.classList.add('dragging');
+  if(ptrs.size === 2){ const [a,b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x-b.x, a.y-b.y); } });
+canvas.addEventListener('pointermove', e => {
+  if(!ptrs.has(e.pointerId)) return;
+  const p = ptrs.get(e.pointerId), dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  if(ptrs.size === 1){ goal.yaw -= dx*.006; goal.pitch = Math.max(-.05, Math.min(1.45, goal.pitch + dy*.005)); cur.yaw = goal.yaw; cur.pitch = goal.pitch; }
+  else if(ptrs.size === 2){ const [a,b] = [...ptrs.values()], d = Math.hypot(a.x-b.x, a.y-b.y); if(pinch0) goal.dist = Math.max(.4, Math.min(16, goal.dist*pinch0/d)); pinch0 = d; }
+});
+const endPtr = e => { ptrs.delete(e.pointerId); if(!ptrs.size) canvas.classList.remove('dragging'); pinch0 = 0; };
+canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('wheel', e => { e.preventDefault(); goal.dist = Math.max(.4, Math.min(16, goal.dist*Math.exp(e.deltaY*.0012))); }, {passive:false});
+
+// ---------- loop ----------
+const feed = $('feed');
+function resize(){ renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+buildSliders(); buildWorld('single');
+const eePos = new THREE.Vector3(), dry = new THREE.Color(0x7a5836), wet = new THREE.Color(0x2b1a0e);
+let last = performance.now(), uiT = 0;
+function frame(now){
+  const dt = Math.min(.05, (now - last)/1000); last = now;
+  for(let i=anims.length-1; i>=0; i--){ const a = anims[i]; a.t = Math.min(1, a.t + dt*1000/a.dur); a.fn(a.t); if(a.t >= 1){ anims.splice(i,1); a.res(); } }
+  rows.forEach(r => {
+    const R = r.robot;
+    if(R.spray) emit(R, R.spray, dt);
+    const target = R.scanning ? .16 + .08*Math.sin(now*.012) : 0;
+    R.cone.material.opacity += (target - R.cone.material.opacity)*.2;
+    R.led.material.color.setHex(R.scanning && Math.sin(now*.02) > 0 ? 0x0f5a2c : 0x3be37f);
+    r.stations.forEach(st => st.plant.soilMat.color.copy(dry).lerp(wet, Math.max(0, Math.min(1, (st.d.moist - 15)/50))));
+  });
+  stepParticles(dt);
+  if((uiT += dt) > .08){ uiT = 0; renderPanel(); }
+
+  if(view === 'tool' && focus){ focus.ee.getWorldPosition(eePos); goal.t.copy(eePos); }
+  const k = reduce ? 1 : 1 - Math.exp(-dt*6);
+  cur.t.lerp(goal.t, k); cur.yaw += (goal.yaw - cur.yaw)*k; cur.pitch += (goal.pitch - cur.pitch)*k; cur.dist += (goal.dist - cur.dist)*k;
+  const d = cur.dist*(innerWidth/innerHeight < .9 ? 1.45 : 1);
+  camera.position.set(cur.t.x + Math.sin(cur.yaw)*Math.cos(cur.pitch)*d, cur.t.y + Math.sin(cur.pitch)*d, cur.t.z + Math.cos(cur.yaw)*Math.cos(cur.pitch)*d);
+  camera.lookAt(cur.t);
+
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, innerHeight); renderer.render(scene, camera);
+  const rc = feed.getBoundingClientRect();
+  if(rc.width > 0 && focus){
+    focus.toolCam.aspect = rc.width/rc.height; focus.toolCam.updateProjectionMatrix();
+    const y = innerHeight - rc.bottom;
+    renderer.setScissorTest(true); renderer.setScissor(rc.left, y, rc.width, rc.height); renderer.setViewport(rc.left, y, rc.width, rc.height);
+    renderer.setClearColor(0x2a3230, 1); renderer.clear();
+    focus.cone.visible = false; renderer.render(scene, focus.toolCam); focus.cone.visible = true;
+    renderer.setClearColor(0x000000, 0); renderer.setScissorTest(false);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
