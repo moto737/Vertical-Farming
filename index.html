@@ -333,7 +333,7 @@ function healLeaf(plant, li){
 function resetLeaves(plant){ plant.leafGeo.attributes.color.array.set(plant.healthy); plant.leafGeo.attributes.color.needsUpdate = true; }
 
 // ---------- robot ----------
-const BODY_Y0 = .10, BODY_H = .30, BEV = .03, BODY_TOP = BODY_Y0 + BODY_H + 2*BEV, SH = BODY_TOP + .37, L1 = .5, L2 = .45;
+const BODY_Y0 = .10, BODY_H = .13, BEV = .03, BODY_TOP = BODY_Y0 + BODY_H + 2*BEV, SH = BODY_TOP + .37, L1 = .5, L2 = .45;
 const deg = Math.PI/180;
 function makeEffector(){
   const ee = new THREE.Group();
@@ -356,7 +356,9 @@ function makeEffector(){
   const toolCam = new THREE.PerspectiveCamera(58, 1.5, .01, 30); toolCam.position.set(.06,.0335,0); toolCam.rotation.y = -Math.PI/2; cam.add(toolCam);
   return {ee, tips, cam, cone, toolCam, led};
 }
-const SCISSOR = {L:.5, stages:3, y0:BODY_TOP + .02, min:.52, max:1.36};
+const SCISSOR = {L:.5, stages:3, y0:BODY_TOP + .02, min:.345, max:1.40}, DROP = .15;
+// camera lens position relative to the wrist pivot when the tool is level
+const LENS_UP = .0735, LENS_FWD = {arm:.225, linear:.2};
 function buildRobot(){
   const R = {group:new THREE.Group(), wheels:[], spray:null, scanning:false, current:null, panel:false, say:'Idle. Run a care cycle to start.', sayCls:''};
   const robot = R.group;
@@ -403,8 +405,10 @@ function buildRobot(){
     cyl(.036,.036,.03, mat.metal,'z',[0,.05,-.2],-1,24));                // front collar
   const rod = cyl(.022,.022,.5, mat.metal,'z',[0,0,0],-1,24); rod.position.y = .05; plat.add(rod);
   const wrist = new THREE.Group(); wrist.position.y = .05; plat.add(wrist);
-  wrist.add(cyl(.032,.032,.09, mat.grey,'x',[-.045,0,0],1,24));
-  const turn = new THREE.Group(); turn.rotation.y = Math.PI/2; wrist.add(turn);
+  wrist.add(box(.06,.05,.05, mat.grey,0,0,-.01), box(.045,.16,.03, mat.grey,0,-.08,-.02));   // drop bracket
+  const pivot = new THREE.Group(); pivot.position.y = -DROP; wrist.add(pivot);
+  pivot.add(cyl(.032,.032,.09, mat.grey,'x',[-.045,0,0],1,24));
+  const turn = new THREE.Group(); turn.rotation.y = Math.PI/2; pivot.add(turn);
   const tilt = new THREE.Group(); turn.add(tilt);
   tilt.add(box(.09,.05,.06, mat.orange, .045,0,0));
   const linEff = makeEffector(); linEff.ee.position.x = .09; tilt.add(linEff.ee);
@@ -437,7 +441,7 @@ const sweep = (R, p, a) => R.kind === 'arm' ? {j1:p.j1 + 12*a, j4:p.j4 - 9*a} : 
 // Planner in the row's local frame. W = wrist pivot, pitch = tool angle below horizontal (deg)
 function solve(R, W, pitch, x){
   if(R.kind === 'linear'){
-    return {x:W.x, lift:Math.max(SCISSOR.min, Math.min(SCISSOR.max, W.y - .05)), ext:Math.max(0, Math.min(.5, R.pose.z - .2 - W.z)), tilt:pitch};
+    return {x:W.x, lift:Math.max(SCISSOR.min, Math.min(SCISSOR.max, W.y - .05 + DROP)), ext:Math.max(0, Math.min(.5, R.pose.z - .2 - W.z)), tilt:pitch};
   }
   const dx = W.x - x, dz = W.z - R.pose.z, r = Math.hypot(dx, dz), h = W.y - SH;
   const yaw = Math.atan2(-dz, dx)/deg, D = Math.max(.08, Math.min(Math.hypot(r,h), L1+L2-.001));
@@ -452,8 +456,8 @@ const TOOL = .29;
 function aim(R, st, T, pitch, gap){
   const lower = st.lvl === 0, lin = R.kind === 'linear', p = pitch*deg, reach = TOOL + gap;
   let wy = T.y + reach*Math.sin(p), wz = T.z + reach*Math.cos(p);
-  if(lower){ wy = lin ? Math.max(.57, Math.min(wy, .66)) : Math.min(wy, .70); wz = Math.max(wz, st.base.z + (lin ? .2 : .32)); }
-  else { wy = Math.min(wy, 1.40); wz = Math.max(wz, st.base.z + .25); }
+  if(lower){ wy = lin ? Math.max(.25, Math.min(wy, .58)) : Math.min(wy, .70); wz = Math.max(wz, st.base.z + (lin ? .2 : .32)); }
+  else { wy = Math.min(wy, lin ? 1.30 : 1.40); wz = Math.max(wz, st.base.z + .25); }
   const pt = Math.atan2(wy - T.y, wz - T.z)/deg;
   return solve(R, new THREE.Vector3(T.x, wy, wz), pt, st.base.x);
 }
@@ -512,11 +516,12 @@ function buildModule(row, mi, x0, ri, rand, demo){
     const id = `R${ri+1}M${mi+1}-${pos}`, x = x0 + .28*s, y = SHELF.levels[lvl] + SHELF.t, z = .02;
     const plant = makePlant(ri*100 + mi*10 + k + 3); plant.group.position.set(x, y, z); row.group.add(plant.group);
     const plaque = new THREE.Group();
+    plaque.add(box(.012, .125, .012, mat.grey, 0, -.1075, -.004), box(.05, .006, .03, mat.grey, 0, -.167, -.004));
     const face = new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.006), [mat.plaque,mat.plaque,mat.plaque,mat.plaque,new THREE.MeshStandardMaterial({map:qrTexture(id), roughness:.6}),mat.plaque]);
     face.castShadow = true; plaque.add(face);
     const ring = new THREE.Mesh(new THREE.RingGeometry(.072,.08,4,1,Math.PI/4), new THREE.MeshBasicMaterial({color:0x34c27a, transparent:true, opacity:0}));
     ring.position.z = .006; plaque.add(ring);
-    plaque.position.set(x + (s < 0 ? .16 : -.16), y - .035, SHELF.d/2 + .004); row.group.add(plaque);
+    plaque.position.set(x + (s < 0 ? .155 : -.155), y + .17, z + .09); row.group.add(plaque);
     const st = {id, species:SPECIES[(ri*4 + mi*3 + k) % SPECIES.length], plant, ring, lvl, base:new THREE.Vector3(x,y,z), tag:plaque.position.clone(), d:{}};
     newDay(st, rand, demo ? demo[k] : null);
     return st;
@@ -607,13 +612,15 @@ const frame1 = () => new Promise(r => requestAnimationFrame(r));
 async function wait(ms, my){ const t0 = performance.now(); while(performance.now() - t0 < ms/SPEED){ if(my !== token) return false; await frame1(); } return my === token; }
 async function move(R, target, dur, my){
   const from = Object.assign({}, R.pose), keys = Object.keys(target).filter(k => k in R.pose);
-  keys.forEach(k => { if(k === 'j1' || k === 'j5'){ let d = target[k] - from[k]; d = ((d % 360) + 540) % 360 - 180; target[k] = from[k] + d; } });
+  // every rotary joint takes the short way round, so no joint ever spins a full turn
+  keys.forEach(k => { if(k[0] === 'j'){ let d = target[k] - from[k]; d = ((d % 360) + 540) % 360 - 180; target[k] = from[k] + d; } });
   let t = 0, last = performance.now();
   while(t < 1){
     if(my !== token) return false;
     await frame1(); const now = performance.now(); t = Math.min(1, t + (now - last)*SPEED/dur); last = now;
     const e = ease(t); keys.forEach(k => R.pose[k] = from[k] + (target[k] - from[k])*e); R.apply(); if(R === focus) syncUI();
   }
+  keys.forEach(k => { if(k[0] === 'j') R.pose[k] = ((R.pose[k] % 360) + 540) % 360 - 180; });
   return my === token;
 }
 
@@ -625,9 +632,9 @@ async function tend(R, st, my){
 
   // 1. read the QR tag, then open the plant's data
   say(R, `Reading the QR tag on ${st.id}`, 'live'); d.chip = 'Reading tag';
-  const sc = st.lvl === 0 ? [.30,.14,55] : [.17,.34,26];
-  const scanPose = R.kind === 'linear' ? aim(R, st, st.tag, sc[2], .1) : solve(R, new THREE.Vector3(st.tag.x, st.tag.y + sc[0], st.tag.z + sc[1]), sc[2], st.base.x);
-  if(!ok(await move(R, scanPose, 1400, my))) return false;
+  // camera level with the tag: tool horizontal, lens at the tag's height, 15 cm in front of it
+  const scanW = new THREE.Vector3(st.tag.x, st.tag.y - LENS_UP, st.tag.z + .15 + LENS_FWD[R.kind]);
+  if(!ok(await move(R, solve(R, scanW, 0, st.tag.x), 1400, my))) return false;
   R.scanning = true; if(!ok(await wait(1100, my))) return false; R.scanning = false;
   st.ring.material.opacity = 1; R.panel = true; d.chip = 'Data loaded';
   say(R, `${st.id} found. Loading sensor data.`, 'live');
@@ -635,7 +642,8 @@ async function tend(R, st, my){
 
   // 2. camera inspects the leaves and soil
   say(R, 'Inspecting leaves and soil', 'live'); d.chip = 'Inspecting'; d.leafState = d.weedState = 'checking';
-  const lookFrom = st.lvl === 0 ? new THREE.Vector3(st.base.x, .66, st.base.z + .46) : new THREE.Vector3(st.base.x, st.base.y + .56, st.base.z + .4);
+  const lin = R.kind === 'linear';
+  const lookFrom = st.lvl === 0 ? new THREE.Vector3(st.base.x, lin ? .56 : .66, st.base.z + .46) : new THREE.Vector3(st.base.x, Math.min(st.base.y + .56, lin ? 1.30 : 1.40), st.base.z + .4);
   const focusPt = st.base.clone().add(new THREE.Vector3(0, .3, 0));
   const look = solve(R, lookFrom, Math.atan2(lookFrom.y - focusPt.y, lookFrom.z - focusPt.z)/deg, st.base.x);
   if(!ok(await move(R, look, 1300, my))) return false;
